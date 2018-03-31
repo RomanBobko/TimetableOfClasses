@@ -34,6 +34,14 @@ namespace TimetableOfClasses.Models
         public string LoginProvider { get; set; }
     }
 
+    public class UserBaseInfoViewModel
+    {
+        public bool IsInRoleAdmin { get; set; }
+        public string UserName { get; set; }
+        public string FullName { get; set; }
+        public Guid StudentGroupId { get; set; }
+    }
+
     public class UserLoginInfoViewModel
     {
         public string LoginProvider { get; set; }

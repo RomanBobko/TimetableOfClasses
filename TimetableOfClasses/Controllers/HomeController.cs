@@ -10,7 +10,7 @@ namespace TimetableOfClasses.Controllers
     {
         public ActionResult Index()
         {
-            ViewBag.Title = "Home Page";
+            ViewBag.Title = "Timetables";
 
             return View();
         }

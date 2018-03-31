@@ -12,7 +12,7 @@ namespace TimetableOfClasses.Models
     public class ApplicationUser : IdentityUser
     {
         public string FullName { get; set; }
-        public Guid? StudentGroupId { get; set; }
+        public Guid StudentGroupId { get; set; }
         public StudentGroup StudentGroup { get; set; }
 
         public async Task<ClaimsIdentity> GenerateUserIdentityAsync(UserManager<ApplicationUser> manager, string authenticationType)
@@ -40,5 +40,6 @@ namespace TimetableOfClasses.Models
         {
             return new ApplicationDbContext();
         }
+
     }
 }

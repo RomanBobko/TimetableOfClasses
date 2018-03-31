@@ -33,10 +33,22 @@ namespace TimetableOfClasses.Models
     }
 
     public class RegisterBindingModel
-    {
+    {        
+        public RegisterBindingModel()
+        {
+            FullName = "";
+        }
+
+        [Display(Name = "ФИО")]
+        public string FullName { get; set; }
+
         [Required]
         [Display(Name = "Адрес электронной почты")]
         public string Email { get; set; }
+
+        [Required]
+        [Display(Name = "Логин")]
+        public string UserName { get; set; }        
 
         [Required]
         [StringLength(100, ErrorMessage = "Значение {0} должно содержать не менее {2} символов.", MinimumLength = 6)]
@@ -48,6 +60,14 @@ namespace TimetableOfClasses.Models
         [Display(Name = "Подтверждение пароля")]
         [Compare("Password", ErrorMessage = "Пароль и его подтверждение не совпадают.")]
         public string ConfirmPassword { get; set; }
+
+        [Required]
+        [Display(Name = "Роль")]
+        public string Role { get; set; }
+
+        [Required]
+        [Display(Name = "Группа")]
+        public Guid StudentGroupId { get; set; }
     }
 
     public class RegisterExternalBindingModel
@@ -70,6 +90,9 @@ namespace TimetableOfClasses.Models
 
     public class SetPasswordBindingModel
     {
+        [Required]
+        public string UserId { get; set; }
+
         [Required]
         [StringLength(100, ErrorMessage = "Значение {0} должно содержать не менее {2} символов.", MinimumLength = 6)]
         [DataType(DataType.Password)]

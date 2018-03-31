@@ -1,24 +1,492 @@
-﻿<div class="jumbotron">
-    <h1>ASP.NET</h1>
-    <p class="lead">ASP.NET is a free web framework for building great Web sites and Web applications using HTML, CSS, and JavaScript.</p>
-    <p><a href="http://asp.net" class="btn btn-primary btn-lg">Learn more &raquo;</a></p>
+﻿<div id="application">
+    <div class="navbar navbar-inverse navbar-fixed-top">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <router-link to="/" class="navbar-brand" exact>TIMETABLE</router-link>
+            </div>
+            <div v-if="authenticatedUser" class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li><router-link to="/" exact>Расписание</router-link></li>
+                    <li v-if="user.IsInRoleAdmin"><router-link to="/users">Пользователи</router-link></li>
+                    <li v-if="user.IsInRoleAdmin"><router-link to="/groups">Группы</router-link></li>
+                    <li v-if="user.IsInRoleAdmin"><router-link to="/teachers">Преподаватели</router-link></li>
+                    <li v-if="user.IsInRoleAdmin"><router-link to="/disciplines">Дисциплины</router-link></li>
+                </ul>
+                <ul class="nav navbar-nav navbar-right">
+                    <li>
+                        <a><b>{{user.FullName}}</b></a>
+                    </li>
+                    <li>
+                        <button v-on:click="logout" class="btn btn-link navbar-btn navbar-link">Выйти</button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="body-content">
+        <div v-if="authenticatedUser">
+            <transition>
+                <router-view></router-view>
+            </transition>
+        </div>
+        <div v-else>
+            <h2>Выполните вход</h2>
+            <form>
+                <div v-show="loginError" style="display:none;" class="alert alert-danger" role="alert">{{loginError}}</div>
+                <div class="form-group">
+                    <label>Имя пользователя:</label>
+                    <input v-model="userName" class="form-control" type="text" />
+                </div>
+                <div class="form-group">
+                    <label>Пароль:</label>
+                    <input v-model="password" class="form-control" type="password" />
+                </div>
+                <input v-on:click.prevent="login" class="btn btn-primary" type="submit" value="Войти" />
+            </form>
+        </div>
+        <hr />
+        <footer>
+            <p>&copy; Бобко Р.В., 2018</p>
+        </footer>
+    </div>
+
 </div>
-<div class="row">
-    <div class="col-md-4">
-        <h2>Getting started</h2>
-        <p>ASP.NET Web API is a framework that makes it easy to build HTTP services that reach
-        a broad range of clients, including browsers and mobile devices. ASP.NET Web API
-        is an ideal platform for building RESTful applications on the .NET Framework.</p>
-        <p><a class="btn btn-default" href="http://go.microsoft.com/fwlink/?LinkId=301870">Learn more &raquo;</a></p>
+
+<template id="timetable-template">
+    <div class="container">
+        <h3 class="text-center">Расписания</h3>
+        <div class="row">
+            <div class="col-lg-4 col-md-4">
+                <button v-if="userIsAdmin" v-on:click="createNewTimetable()" class="btn btn-primary">Создать расписание</button>
+                <div id='sandbox-container'>
+                    <div id="date-picker"></div>
+                </div>
+            </div>
+            <div class="col-lg-8 col-md-8">
+                <div v-if="createTimetable">
+                    <div v-show="messageText" v-bind:class="messageClass" class="alert" role="alert">{{messageText}}</div>
+                    <form>
+                        <h3>Новое расписание</h3>
+                        <div class="form-group">
+                            <label>Дата {{createTimetable.date | formatedDate}}</label>
+                        </div>
+                        <div class="form-group">
+                            <label>Время начала занятия</label>
+                            <input v-model="createTimetable.startTime" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Время окончания занятия</label>
+                            <input v-model="createTimetable.expirationTime" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Группа</label>
+                            <select v-model="createTimetable.studentGroupId" class="form-control">
+                                <option disabled value="">Выберите группу</option>
+                                <option v-for="group in groups" v-bind:value="group.Id">{{group.Name}}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Дисциплина</label>
+                            <select v-model="createTimetable.disciplineId" class="form-control">
+                                <option disabled value="">Выберите дисциплину</option>
+                                <option v-for="discipline in disciplines" v-bind:value="discipline.Id">{{discipline.Name}}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Преподаватель</label>
+                            <select v-model="createTimetable.teacherId" class="form-control">
+                                <option disabled value="">Выберите преподавателя</option>
+                                <option v-for="teacher in teachers" v-bind:value="teacher.Id">{{teacher.FullName}}</option>
+                            </select>
+                        </div>
+                        <input v-on:click.prevent="postTimetable()" type="submit" value="Создать" class="btn btn-primary" />
+                        <div v-on:click="showTimetables()" class="btn btn-default">Выход</div>
+                    </form>
+                </div>
+                <div v-else-if="selectedTimetable">
+                    <div v-show="messageText" v-bind:class="messageClass" class="alert" role="alert">{{messageText}}</div>
+                    <form>
+                        <h3>Редактирорвание расписания</h3>
+                        <div class="form-group">
+                            <label>Дата {{selectedTimetable.Date | formatedDate}}</label>
+                        </div>
+                        <div class="form-group">
+                            <label>Время начала занятия</label>
+                            <input v-model="selectedTimetable.StartTime" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Время окончания занятия</label>
+                            <input v-model="selectedTimetable.ExpirationTime" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Группа</label>
+                            <select v-model="selectedTimetable.StudentGroupId" class="form-control">
+                                <option disabled value="">Выберите группу</option>
+                                <option v-for="group in groups" v-bind:value="group.Id">{{group.Name}}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Дисциплина</label>
+                            <select v-model="selectedTimetable.DisciplineId" class="form-control">
+                                <option disabled value="">Выберите дисциплину</option>
+                                <option v-for="discipline in disciplines" v-bind:value="discipline.Id">{{discipline.Name}}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Преподаватель</label>
+                            <select v-model="selectedTimetable.TeacherId" class="form-control">
+                                <option disabled value="">Выберите преподавателя</option>
+                                <option v-for="teacher in teachers" v-bind:value="teacher.Id">{{teacher.FullName}}</option>
+                            </select>
+                        </div>
+                        <input v-on:click.prevent="saveTimetable()" type="submit" value="Сохранить" class="btn btn-primary" />
+                        <div v-on:click="removeTimetable(selectedTimetable)" class="btn btn-danger">Удалить</div>
+                        <div v-on:click="showTimetables()" class="btn btn-default">Отмена</div>
+                    </form>
+                </div>
+                <div v-else>
+                    <div class="timetables-list">
+                        <div v-for="timetables in allTimetables">
+                            <div class="well well-sm">
+                                <div class="list-group">
+                                    <div class="list-group-item active">
+                                        <h4 class="list-group-item-heading">{{getGroupName(timetables)}}</h4>
+                                    </div>
+                                </div>
+                                <div v-for="timetable in timetables" class="list-group">
+                                    <a v-on:click="selectTimetable(timetable)" class="list-group-item">
+                                        <span>{{timetable.Date | formatedDate}}</span>
+                                        <h4 class="list-group-item-heading">{{timetable.StartTime | formatedTime}} - {{timetable.ExpirationTime | formatedTime}}</h4>
+                                        <h4 class="list-group-item-heading">{{getDisciplineName(timetable.DisciplineId)}}</h4>
+                                        <p class="list-group-item-text">{{getTeacherName(timetable.TeacherId)}}</p>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
     </div>
-    <div class="col-md-4">
-        <h2>Get more libraries</h2>
-        <p>NuGet is a free Visual Studio extension that makes it easy to add, remove, and update libraries and tools in Visual Studio projects.</p>
-        <p><a class="btn btn-default" href="http://go.microsoft.com/fwlink/?LinkId=301871">Learn more &raquo;</a></p>
+</template>
+
+<template id="users-template">
+    <div class="container">
+        <h3>Управление пользователями</h3>
+        <div class="row">
+            <div class="col-lg-4 col-md-4">
+                <div class="form-group">
+                    <button v-on:click="createNewUser(true)" class="btn btn-sm btn-primary">Создать пользователя</button>
+                </div>
+                <input v-model="searchText" class="form-control" type="text" placeholder="Поиск..." />
+                <div class="list list-group">
+                    <a v-for="user in filteredUsers" v-on:click="selectUser(user)" class="list-group-item">
+                        <h5 class="list-group-item-heading">{{user.UserName}}</h5>
+                        <p class="list-group-item-text">{{user.FullName}}</p>
+                        <p class="list-group-item-text">{{user.Email}}</p>
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-8 col-md-8">
+                <div v-if="currentUser">
+                    <div v-show="messageText" v-bind:class="messageClass" class="alert" role="alert">{{messageText}}</div>
+                    <form>
+                        <div class="form-group">
+                            <h3>Редактирование <b>{{currentUser.UserName}}</b></h3>
+                        </div>
+                        <div class="form-group">
+                            <label>ФИО</label>
+                            <input v-model="currentUser.FullName" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input v-model="currentUser.Email" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Группа</label>
+                            <select v-model="currentUser.StudentGroupId" class="form-control">
+                                <option v-for="group in groups" v-bind:value="group.Id">{{group.Name}}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Роль</label>
+                            <select v-model="currentUser.RoleName" class="form-control">
+                                <option value="Student">Студент</option>
+                                <option value="Admin">Администратор</option>
+                            </select>
+                        </div>
+                        <input v-on:click.prevent="saveUser(currentUser)" type="submit" class="btn btn-primary" value="Сохранить" />
+                        <div v-on:click="removeUser(currentUser)" class="btn btn-danger">Удалить пользователя</div>
+                        <hr />
+                        <div class="form-group">
+                            <label>Пароль</label>
+                            <input v-model="newPassword" v-bind:type="passwordInputType" class="form-control" />
+                            <label>Подтверждение пароля</label>
+                            <input v-model="newPasswordConfirm" v-bind:type="passwordInputType" class="form-control" />
+                            <div v-on:click.prevent="generatePassword()" class="btn btn-default">Сгенерировать пароль</div>
+                            <div v-on:click.prevent="setNewPassword(currentUser.Id)" class="btn btn-success">Установить пароль</div>
+                        </div>
+                    </form>
+                </div>
+                <div v-else-if="createUser">
+                    <div v-show="messageText" v-bind:class="messageClass" class="alert" role="alert">{{messageText}}</div>
+                    <form>
+                        <h3>Новый пользователь</h3>
+                        <div class="form-group">
+                            <label>Логин</label>
+                            <input v-model="createUser.userName" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Пароль</label>
+                            <input v-model="createUser.password" class="form-control" type="password" />
+                        </div>
+                        <div class="form-group">
+                            <label>Подтверждение пароля</label>
+                            <input v-model="createUser.confirmPassword" class="form-control" type="password" />
+                        </div>
+                        <div class="form-group">
+                            <label>ФИО</label>
+                            <input v-model="createUser.fullName" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input v-model="createUser.email" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Группа</label>
+                            <select v-model="createUser.studentGroupId" class="form-control">
+                                <option v-for="group in groups" v-bind:value="group.Id">{{group.Name}}</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Роль</label>
+                            <select v-model="createUser.role" class="form-control">
+                                <option value="Student">Студент</option>
+                                <option value="Admin">Администратор</option>
+                            </select>
+                        </div>
+                        <input v-on:click.prevent="postNewUser()" type="submit" value="Создать" class="btn btn-primary" />
+                    </form>
+                </div>
+                <div v-else class="text-center">
+                    <h3> Выберите пользователя </h3>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="col-md-4">
-        <h2>Web Hosting</h2>
-        <p>You can easily find a web hosting company that offers the right mix of features and price for your applications.</p>
-        <p><a class="btn btn-default" href="http://go.microsoft.com/fwlink/?LinkId=301872">Learn more &raquo;</a></p>
+</template>
+
+<template id="groups-template">
+    <div class="container">
+        <h3>Управление группами</h3>
+        <div class="row">
+            <div class="col-lg-4 col-md-4">
+                <div class="form-group">
+                    <button v-on:click="createNewGroup()" class="btn btn-sm btn-primary">Создать группу</button>
+                </div>
+                <input v-model="searchText" class="form-control" type="text" placeholder="Поиск..." />
+                <div class="list list-group">
+                    <a v-for="group in filteredGroups" v-on:click="selectGroup(group)" class="list-group-item">
+                        <h5 class="list-group-item-heading">{{group.Name}}</h5>
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-8 col-md-8">
+                <div v-if="currentGroup">
+                    <div v-show="messageText" v-bind:class="messageClass" class="alert" role="alert">{{messageText}}</div>
+                    <form>
+                        <div class="form-group">
+                            <h3>Редактирование <b>{{currentGroup.Name}}</b></h3>
+                        </div>
+                        <div class="form-group">
+                            <label>Название группы</label>
+                            <input v-model="currentGroup.Name" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Дата начала действия</label>
+                            <input v-model="startDate" id="start-date" type="text" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>Дата окончания действия</label>
+                            <input v-model="expirationDate" id="end-date" type="text" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>Участники группы</label>
+                            <div class="checkbox" v-for="student in currentGroup.Students">
+                                <label>
+                                    <input v-model="newParticipants" type="checkbox" v-bind:value="student.Id">
+                                    {{student.UserName}} {{student.FullName}}
+                                </label>
+                            </div>
+                            <div class="checkbox" v-for="candidate in candidates">
+                                <label>
+                                    <input v-model="newParticipants" type="checkbox" v-bind:value="candidate.Id">
+                                    {{candidate.UserName}} {{candidate.FullName}}
+                                </label>
+                            </div>
+                        </div>
+                        <input v-on:click.prevent="saveGroup(currentGroup)" type="submit" class="btn btn-primary" value="Сохранить" />
+                        <div v-on:click="removeGroup(currentGroup)" class="btn btn-danger">Удалить группу</div>
+                    </form>
+                </div>
+                <div v-else-if="createGroup">
+                    <div v-show="messageText" v-bind:class="messageClass" class="alert" role="alert">{{messageText}}</div>
+                    <form>
+                        <h3>Новая группа</h3>
+                        <div class="form-group">
+                            <label>Название группы</label>
+                            <input v-model="createGroup.name" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Дата начала действия</label>
+                            <input v-model="startDate" id="start-date" type="text" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>Дата окончания действия</label>
+                            <input v-model="expirationDate" id="end-date" type="text" class="form-control" name="end" />
+                        </div>
+                        <input v-on:click.prevent="postNewGroup()" type="submit" value="Создать" class="btn btn-primary" />
+                    </form>
+                </div>
+                <div v-else class="text-center">
+                    <h3> Выберите группу</h3>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
+</template>
+
+<template id="teachers-template">
+    <div class="container">
+        <h3>Управление преподавателями</h3>
+        <div class="row">
+            <div class="col-lg-4 col-md-4">
+                <div class="form-group">
+                    <button v-on:click="createNewTeacher()" class="btn btn-sm btn-primary">Создать препдавателя</button>
+                </div>
+                <input v-model="searchText" class="form-control" type="text" placeholder="Поиск..." />
+                <div class="list list-group">
+                    <a v-for="teacher in filteredTeachers" v-on:click="selectTeacher(teacher)" class="list-group-item">
+                        <h5 class="list-group-item-heading">{{teacher.FullName}}</h5>
+                        <p class="list-group-item-text">{{teacher.Phone}}</p>
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-8 col-md-8">
+                <div v-if="currentTeacher">
+                    <div v-show="messageText" v-bind:class="messageClass" class="alert" role="alert">{{messageText}}</div>
+                    <form>
+                        <div class="form-group">
+                            <h3>Редактирование <b>{{currentTeacher.FullName}}</b></h3>
+                        </div>
+                        <div class="form-group">
+                            <label>ФИО преподавателя</label>
+                            <input v-model="currentTeacher.FullName" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Телефон</label>
+                            <input v-model="currentTeacher.Phone" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Дисциплины</label>
+                            <div class="checkbox" v-for="discipline in disciplines">
+                                <label>
+                                    <input v-model="newDisciplines" type="checkbox" v-bind:value="discipline.Id">
+                                    {{discipline.Name}}
+                                </label>
+                            </div>
+                        </div>
+                        <input v-on:click.prevent="saveTeacher()" type="submit" class="btn btn-primary" value="Сохранить" />
+                        <div v-on:click="removeTeacher(currentTeacher)" class="btn btn-danger">Удалить преподавателя</div>
+                    </form>
+                </div>
+                <div v-else-if="createTeacher">
+                    <div v-show="messageText" v-bind:class="messageClass" class="alert" role="alert">{{messageText}}</div>
+                    <form>
+                        <h3>Новый преподаватель</h3>
+                        <div class="form-group">
+                            <label>ФИО преподавателя</label>
+                            <input v-model="createTeacher.fullName" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Телефон</label>
+                            <input v-model="createTeacher.phone" class="form-control" type="text" />
+                        </div>
+                        <input v-on:click.prevent="postNewTeacher()" type="submit" value="Создать" class="btn btn-primary" />
+                    </form>
+                </div>
+                <div v-else class="text-center">
+                    <h3> Выберите преподавателя</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="disciplines-template">
+    <div class="container">
+        <h3>Управление дисциплинами</h3>
+        <div class="row">
+            <div class="col-lg-4 col-md-4">
+                <div class="form-group">
+                    <button v-on:click="createNewDiscipline()" class="btn btn-sm btn-primary">Создать дисциплину</button>
+                </div>
+                <input v-model="searchText" class="form-control" type="text" placeholder="Поиск..." />
+                <div class="list list-group">
+                    <a v-for="discipline in filteredDisciplines" v-on:click="selectDiscipline(discipline)" class="list-group-item">
+                        <h5 class="list-group-item-heading">{{discipline.Name}}</h5>
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-8 col-md-8">
+                <div v-if="currentDiscipline">
+                    <div v-show="messageText" v-bind:class="messageClass" class="alert" role="alert">{{messageText}}</div>
+                    <form>
+                        <div class="form-group">
+                            <h3>Редактирование <b>{{currentDiscipline.Name}}</b></h3>
+                        </div>
+                        <div class="form-group">
+                            <label>Название дисциплины</label>
+                            <input v-model="currentDiscipline.Name" class="form-control" type="text" />
+                        </div>
+                        <div class="form-group">
+                            <label>Преподаватели</label>
+                            <div class="checkbox" v-for="teacher in teachers">
+                                <label>
+                                    <input v-model="newParticipants" type="checkbox" v-bind:value="teacher.Id">
+                                    {{teacher.UserName}} {{teacher.FullName}}
+                                </label>
+                            </div>
+                        </div>
+                        <input v-on:click.prevent="saveDiscipline()" type="submit" class="btn btn-primary" value="Сохранить" />
+                        <div v-on:click="removeDiscipline(currentDiscipline)" class="btn btn-danger">Удалить дисциплину</div>
+                    </form>
+                </div>
+                <div v-else-if="createDiscipline">
+                    <div v-show="messageText" v-bind:class="messageClass" class="alert" role="alert">{{messageText}}</div>
+                    <form>
+                        <h3>Новая дисциплина</h3>
+                        <div class="form-group">
+                            <label>Название дисциплины</label>
+                            <input v-model="createDiscipline.name" class="form-control" type="text" />
+                        </div>
+                        <input v-on:click.prevent="postNewDiscipline()" type="submit" value="Создать" class="btn btn-primary" />
+                    </form>
+                </div>
+                <div v-else class="text-center">
+                    <h3> Выберите дисциплину</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+@section scripts{
+    <script src="~/Scripts/main.js"></script>
+}
