@@ -27,15 +27,13 @@ namespace TimetableOfClasses.Controllers
         {
             if (User.IsInRole("Admin"))
             {
-                return Json(db.Timetablse.Where(t => t.Date == date)
-                    .OrderBy(t => t.StartTime)
-                    .GroupBy(t => t.StudentGroupId));
+                return Json(db.Timetablse.Where(t => t.Date == date).OrderBy(t => t.StartTime).ToList().GroupBy(t => t.StudentGroupId));
             }
             var userManager = new ApplicationUserManager(new UserStore<ApplicationUser>(db));
             ApplicationUser user = await userManager.FindByNameAsync(User.Identity.Name);
             return Json(
                 db.Timetablse.Where(t => t.Date == date && t.StudentGroupId == user.StudentGroupId)
-                .OrderBy(t => t.StartTime)
+                .OrderBy(t => t.StartTime).ToList()
                 .GroupBy(t => t.StudentGroupId)
                 );
         }
@@ -56,10 +54,11 @@ namespace TimetableOfClasses.Controllers
 
         // PUT: api/Timetables/5
         [Authorize(Roles = "Admin")]
-        [Route("Put/{id}")]        
+        [Route("Put/{id}")]
         [ResponseType(typeof(void))]
-        public IHttpActionResult PutTimetable(Guid id, Timetable timetable) {
-            
+        public IHttpActionResult PutTimetable(Guid id, Timetable timetable)
+        {
+
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
@@ -68,6 +67,14 @@ namespace TimetableOfClasses.Controllers
             if (id != timetable.Id)
             {
                 return BadRequest();
+            }
+
+            timetable.StartTime = AdjustingTime(timetable.Date, timetable.StartTime);
+            timetable.ExpirationTime = AdjustingTime(timetable.Date, timetable.ExpirationTime);
+
+            if (!IsValidTimeRange(timetable, false) || !IsValidTeacher(timetable) || teacherIsBusy(timetable))
+            {
+                return BadRequest(ModelState);
             }
 
             db.Entry(timetable).State = EntityState.Modified;
@@ -101,6 +108,17 @@ namespace TimetableOfClasses.Controllers
             {
                 return BadRequest(ModelState);
             }
+
+            timetable.StartTime = AdjustingTime(timetable.Date, timetable.StartTime);
+            timetable.ExpirationTime = AdjustingTime(timetable.Date, timetable.ExpirationTime);
+
+            if (!IsValidTimeRange(timetable, true) || !IsValidTeacher(timetable) || teacherIsBusy(timetable))
+            {
+                return BadRequest(ModelState);
+            }
+
+
+
             timetable.Id = Guid.NewGuid();
             db.Timetablse.Add(timetable);
 
@@ -123,6 +141,8 @@ namespace TimetableOfClasses.Controllers
             return Json(timetable);
         }
 
+
+
         // DELETE: api/Timetables/5
         [Authorize(Roles = "Admin")]
         [Route("Delete/{id}")]
@@ -139,7 +159,116 @@ namespace TimetableOfClasses.Controllers
             db.SaveChanges();
 
             return Ok(timetable);
-        }                
+        }
+
+        private bool teacherIsBusy(Timetable timetable)
+        {
+            Timetable existTimetable;
+            if (timetable.Id == Guid.Empty)
+            {
+                existTimetable = db.Timetablse.AsNoTracking().Include(t => t.Teacher).Include(t => t.StudentGroup).FirstOrDefault(
+                            t => t.Date == timetable.Date && t.TeacherId == timetable.TeacherId
+                            &&
+                            ((timetable.StartTime < t.ExpirationTime && timetable.StartTime >= t.StartTime)
+                            || (timetable.ExpirationTime > t.StartTime && timetable.ExpirationTime <= t.ExpirationTime))
+                            );
+            }
+            else
+            {
+                existTimetable = db.Timetablse.AsNoTracking().Include(t => t.Teacher).Include(t => t.StudentGroup).FirstOrDefault(
+                            t => t.Date == timetable.Date && t.TeacherId == timetable.TeacherId
+                            && t.Id != timetable.Id
+                            &&
+                            ((timetable.StartTime < t.ExpirationTime && timetable.StartTime >= t.StartTime)
+                            || (timetable.ExpirationTime > t.StartTime && timetable.ExpirationTime <= t.ExpirationTime))
+                            );
+            }            
+
+            if (existTimetable == null)
+            {
+                return false;
+            }
+
+            
+
+            ModelState.AddModelError("Teacher is busy", "Преподаватель " + existTimetable.Teacher.FullName + " занят на занятии у группы " +
+                existTimetable.StudentGroup.Name + " с " + existTimetable.StartTime.ToShortTimeString() + " до " + existTimetable.ExpirationTime.ToShortTimeString());
+
+            return true;
+        }
+
+        private bool IsValidTeacher(Timetable timetable)
+        {
+            Teacher teacher = db.Teachers.AsNoTracking().FirstOrDefault(t => t.Id == timetable.TeacherId);
+
+            Discipline discipline = db.Disciplines.AsNoTracking().Include(d => d.Teachers).FirstOrDefault(d => d.Id == timetable.DisciplineId);
+
+            if (teacher != null && discipline != null)
+            {
+                bool contains = false;
+                foreach (var item in discipline.Teachers)
+                {
+                    if (teacher.Id == item.Id)
+                    {
+                        contains = true;
+                    }
+                }
+                if (!contains)
+                {
+                    ModelState.AddModelError("Teacher", "Преподаватель " + teacher.FullName + " тел.: " + teacher.Phone + " не преподает дисциплину " + discipline.Name);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private bool IsValidTimeRange(Timetable timetable, bool isNewEntry)
+        {
+            if (timetable.ExpirationTime <= timetable.StartTime)
+            {
+                ModelState.AddModelError("Time not corect",
+                "Время окончания занятия должно быть больше чем время начала занятия");
+                return false;
+            }
+
+            Timetable existTimetable;
+            if (timetable.Id == Guid.Empty)
+            {
+                existTimetable = db.Timetablse.AsNoTracking().Include(t => t.StudentGroup).FirstOrDefault(
+                                t => t.Date == timetable.Date && t.StudentGroupId == timetable.StudentGroupId
+                                &&
+                                ((timetable.StartTime < t.ExpirationTime && timetable.StartTime >= t.StartTime)
+                                || (timetable.ExpirationTime > t.StartTime && timetable.ExpirationTime <= t.ExpirationTime))
+                                );
+            }
+            else
+            {
+                existTimetable = db.Timetablse.AsNoTracking().Include(t => t.StudentGroup).FirstOrDefault(
+                                t => t.Date == timetable.Date && t.StudentGroupId == timetable.StudentGroupId
+                                && t.Id != timetable.Id
+                                &&
+                                ((timetable.StartTime < t.ExpirationTime && timetable.StartTime >= t.StartTime)
+                                || (timetable.ExpirationTime > t.StartTime && timetable.ExpirationTime <= t.ExpirationTime))
+                                );
+            }
+
+            if (existTimetable == null)
+            {
+                return true;
+            }
+
+            ModelState.AddModelError("Time busy",
+                "Группа " + existTimetable.StudentGroup.Name + " занята с " + existTimetable.StartTime.ToShortTimeString()
+                + " до " + existTimetable.ExpirationTime.ToShortTimeString());
+            return false;
+
+        }
+
+        private DateTime AdjustingTime(DateTime date, DateTime time)
+        {
+            return new DateTime(date.Year, date.Month, date.Day,
+                time.Hour, time.Minute, 0);
+        }
 
         private bool TimetableExists(Guid id)
         {

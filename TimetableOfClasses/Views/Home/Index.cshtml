@@ -92,7 +92,7 @@
                         </div>
                         <div class="form-group">
                             <label>Дисциплина</label>
-                            <select v-model="createTimetable.disciplineId" class="form-control">
+                            <select v-model="createTimetable.disciplineId" v-on:change="changeDiscipline()" class="form-control">
                                 <option disabled value="">Выберите дисциплину</option>
                                 <option v-for="discipline in disciplines" v-bind:value="discipline.Id">{{discipline.Name}}</option>
                             </select>
@@ -101,7 +101,7 @@
                             <label>Преподаватель</label>
                             <select v-model="createTimetable.teacherId" class="form-control">
                                 <option disabled value="">Выберите преподавателя</option>
-                                <option v-for="teacher in teachers" v-bind:value="teacher.Id">{{teacher.FullName}}</option>
+                                <option v-for="teacher in filteredTeachers" v-bind:value="teacher.Id">{{teacher.FullName}} {{teacher.Phone}}</option>
                             </select>
                         </div>
                         <input v-on:click.prevent="postTimetable()" type="submit" value="Создать" class="btn btn-primary" />
@@ -132,7 +132,7 @@
                         </div>
                         <div class="form-group">
                             <label>Дисциплина</label>
-                            <select v-model="selectedTimetable.DisciplineId" class="form-control">
+                            <select v-model="selectedTimetable.DisciplineId" v-on:change="changeDiscipline()" class="form-control">
                                 <option disabled value="">Выберите дисциплину</option>
                                 <option v-for="discipline in disciplines" v-bind:value="discipline.Id">{{discipline.Name}}</option>
                             </select>
@@ -141,7 +141,7 @@
                             <label>Преподаватель</label>
                             <select v-model="selectedTimetable.TeacherId" class="form-control">
                                 <option disabled value="">Выберите преподавателя</option>
-                                <option v-for="teacher in teachers" v-bind:value="teacher.Id">{{teacher.FullName}}</option>
+                                <option v-for="teacher in filteredTeachers" v-bind:value="teacher.Id">{{teacher.FullName}} {{teacher.Phone}}</option>
                             </select>
                         </div>
                         <input v-on:click.prevent="saveTimetable()" type="submit" value="Сохранить" class="btn btn-primary" />

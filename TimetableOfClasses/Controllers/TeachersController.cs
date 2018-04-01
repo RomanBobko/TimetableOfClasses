@@ -20,9 +20,13 @@ namespace TimetableOfClasses.Controllers
 
         // GET: api/Teachers
         [Authorize]
-        public IQueryable<Teacher> GetTeachers()
+        public IHttpActionResult GetTeachers()
         {
-            return db.Teachers;
+            return Json(JsonConvert.SerializeObject(db.Teachers.Include(t => t.Disciplines).OrderBy(t=>t.FullName).ToList(), Formatting.None,
+                        new JsonSerializerSettings()
+                        {
+                            ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+                        }));
         }
 
         // GET: api/Teachers/5

@@ -12,7 +12,7 @@
                 disciplines: [],
                 teachers: [],
                 allTimetables: [],
-                
+
             };
         },
         methods: {
@@ -43,6 +43,7 @@
                 };
             },
             createNewTimetable: function () {
+                this.selectedTimetable = null;
                 this.createTimetable = {
                     date: this.currentDay,
                     startTime: "08:30",
@@ -53,6 +54,30 @@
                 }
             },
             postTimetable: function () {
+                this.messageText = null;
+
+                var validationMessage = '';
+                var regexp = /([0-1][0-9]|2[0-3]):[0-5][0-9]/i;
+                if (!regexp.test(this.createTimetable.startTime)) {
+                    validationMessage += ' Введите время начала занятия в формате 00:00 ;';
+                }
+                if (!regexp.test(this.createTimetable.expirationTime)) {
+                    validationMessage += ' Введите время окончания занятия в формате 00:00 ;';
+                }
+                if (this.createTimetable.studentGroupId == '') {
+                    validationMessage += ' Выберите группу; ';
+                }
+                if (this.createTimetable.disciplineId == '') {
+                    validationMessage += ' Выберите дисциплину; ';
+                }
+                if (this.createTimetable.teacherId == '') {
+                    validationMessage += ' Выберите преподавателя; ';
+                }
+                if (validationMessage != '') {
+                    this.showInfo('alert-danger', validationMessage);
+                    return;
+                }
+
                 this.$http.post('/api/Timetables/Post', this.createTimetable,
                         { headers: { Authorization: sessionStorage.getItem('tokenKey') } })
                     .then(
@@ -70,7 +95,30 @@
                     );
             },
             saveTimetable: function () {
-                this.$http.put('/api/Timetables/Put/' + this.selectedTimetable.Id, this.selectedTimetable, 
+
+                var validationMessage = '';
+                var regexp = /([0-1][0-9]|2[0-3]):[0-5][0-9]/i;
+                if (!regexp.test(this.selectedTimetable.StartTime)) {
+                    validationMessage += ' Введите время начала занятия в формате 00:00 ;';
+                }
+                if (!regexp.test(this.selectedTimetable.ExpirationTime)) {
+                    validationMessage += ' Введите время окончания занятия в формате 00:00 ;';
+                }
+                if (this.selectedTimetable.StudentGroupId == '') {
+                    validationMessage += ' Выберите группу; ';
+                }
+                if (this.selectedTimetable.DisciplineId == '') {
+                    validationMessage += ' Выберите дисциплину; ';
+                }
+                if (this.selectedTimetable.TeacherId == '') {
+                    validationMessage += ' Выберите преподавателя; ';
+                }
+                if (validationMessage != '') {
+                    this.showInfo('alert-danger', validationMessage);
+                    return;
+                }
+
+                this.$http.put('/api/Timetables/Put/' + this.selectedTimetable.Id, this.selectedTimetable,
                         { headers: { Authorization: sessionStorage.getItem('tokenKey') } })
                     .then(
                     function (response) {
@@ -146,8 +194,9 @@
                     { headers: { Authorization: sessionStorage.getItem('tokenKey') } })
                 .then(
                 function (response) {
-                    for (var i = 0; i < response.data.length; i++) {
-                        this.teachers.push(response.data[i]);
+                    var loadedTeachers = JSON.parse(response.data);
+                    for (var i = 0; i < loadedTeachers.length; i++) {
+                        this.teachers.push(loadedTeachers[i]);
                     }
                 },
                 function (error) {
@@ -208,6 +257,14 @@
                     return 'Ошибка загрузки данных.';
                 }
                 return teacher.FullName;
+            },
+            changeDiscipline: function () {
+                if (this.createTimetable) {
+                    this.createTimetable.teacherId = "";
+                } else if (this.selectedTimetable){
+                    this.selectedTimetable.TeacherId = "";
+                }
+
             }
         },
         mounted: function () {
@@ -227,7 +284,7 @@
             });
         },
         created: function () {
-            
+
             this.loadGroups();
             this.loadDisciplines();
             this.loadTeachers();
@@ -243,7 +300,28 @@
         },
         computed: {
             userIsAdmin: function () {
-                return this.$parent.user.IsInRoleAdmin;                
+                return this.$parent.user.IsInRoleAdmin;
+            },
+            filteredTeachers: function () {
+                function filter(obj) {
+                    for (var i = 0; i < obj.Disciplines.length; i++) {
+                        if (this.selectedDisciplineId === obj.Disciplines[i].Id) {
+                            return true;
+                        }
+                    }
+                    return false;
+
+                }
+                return this.teachers.filter(filter, this);
+            },
+            selectedDisciplineId: function () {
+                if (this.selectedTimetable) {
+                    return this.selectedTimetable.DisciplineId;
+                }
+                if (this.createTimetable) {
+                    return this.createTimetable.disciplineId;
+                }
+                return '';
             }
         }
     });
@@ -814,8 +892,9 @@ var teachers = Vue.component('teachers',
                     { headers: { Authorization: sessionStorage.getItem('tokenKey') } })
                 .then(
                 function (response) {
-                    for (var i = 0; i < response.data.length; i++) {
-                        this.teachers.push(response.data[i]);
+                    var loadedTeachers = JSON.parse(response.data);
+                    for (var i = 0; i < loadedTeachers.length; i++) {
+                        this.teachers.push(loadedTeachers[i]);
                     }
                 },
                 function (error) {
@@ -983,8 +1062,9 @@ var disciplines = Vue.component('disciplines',
                 .then(
                 function (response) {
                     this.teachers.splice(0, this.teachers.length);
-                    for (var i = 0; i < response.data.length; i++) {
-                        this.teachers.push(response.data[i]);
+                    var loadedTeachers = JSON.parse(response.data);
+                    for (var i = 0; i < loadedTeachers.length; i++) {
+                        this.teachers.push(loadedTeachers[i]);
                     }
                 },
                 function (error) {
@@ -1058,12 +1138,12 @@ var app = new Vue({
         login: function () {
                 if (this.userName === '' || this.password === '') {
                     this.showLoginError('Заполните имя пользователя и пароль');
-                } else {
+    } else {
                     var data = {
-                        grant_type: 'password',
-                        username: this.userName,
-                        password: this.password
-                    };
+        grant_type: 'password',
+        username: this.userName,
+        password: this.password
+    };
                     this.$http.post('/Token', data, { emulateJSON: true })
                     .then(
                         function (response) {
@@ -1094,7 +1174,7 @@ var app = new Vue({
                     .then(
                     function (response) {
                         this.user = response.data;
-                        this.authenticatedUser = true;                        
+                        this.authenticatedUser = true;
                     },
                     function (error) {
                         console.log(error);
@@ -1102,7 +1182,7 @@ var app = new Vue({
             }
         },
     created: function () {
-        if (sessionStorage.getItem('tokenKey') !== null) {            
+        if (sessionStorage.getItem('tokenKey') !== null) {
             this.getUserBaseInfo();
         }
     }
