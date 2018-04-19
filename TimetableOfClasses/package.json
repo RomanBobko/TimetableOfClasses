@@ -1,0 +1,23 @@
+{
+  "name": "webpackapp",
+  "description": "Timetable of classes",
+  "version": "1.0.0",
+  "author": "r.bobko",
+  "scripts": {
+    "dev": "webpack-dev-server --hot --open",
+	"build": "webpack",
+	"watch": "webpack --watch"
+  },
+  "dependencies": {
+    "react": "^16.0.0",
+    "react-dom": "^16.0.0"
+  },
+  "devDependencies": {
+    "babel-core": "^6.26.0",
+    "babel-loader": "^7.1.2",
+    "babel-preset-env": "^1.6.0",
+    "babel-preset-react": "^6.16.0",
+    "webpack": "^3.6.0",
+    "webpack-dev-server": "^2.9.1"
+  }
+}

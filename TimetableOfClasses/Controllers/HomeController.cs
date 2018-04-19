@@ -14,5 +14,19 @@ namespace TimetableOfClasses.Controllers
 
             return View();
         }
+
+        public ActionResult Vue()
+        {
+            ViewBag.Title = "Timetables Vue";
+
+            return View();
+        }
+
+        public ActionResult React()
+        {
+            ViewBag.Title = "Timetables React";
+
+            return View();
+        }
     }
 }
